@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flexible biogas CHP</title>
+<meta name="description" content="How much flexible operation of an agricultural biogas CHP plant is worth on Polish and German day-ahead prices, and how much extra CHP capacity and gas storage pay off.">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" integrity="sha384-cCVCZkAjYNxaYKbM8lsArLznDF/SvMFr1jcZrvOpSTCa0W40ZAdLzHCEulnUa5i7" crossorigin="anonymous"></script>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --accent: #2a78d6; --accent2: #1b3f8f; --warm: #e8a33d; --warm2: #b5781c; --neg: #d1495b; --base: #898781;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent2: #8fb6f0; --warm: #e8a33d; --warm2: #d39445; --neg: #e5707f; --base: #9b9a94;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+  --accent: #3987e5; --accent2: #8fb6f0; --warm: #e8a33d; --warm2: #d39445; --neg: #e5707f; --base: #9b9a94;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 18px; margin: 32px 0 8px; }
+p.lead { color: var(--ink2); margin: 0 0 16px; max-width: 860px; }
+.note { color: var(--ink2); font-size: 13px; max-width: 900px; }
+.controls { display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: end; padding: 12px; background: var(--surface);
+  border: 1px solid var(--ring); border-radius: 8px; position: sticky; top: 0; z-index: 5; }
+.controls label { display: flex; flex-direction: column; font-size: 12px; color: var(--ink2); gap: 4px; }
+.controls output { font-weight: 600; color: var(--ink); font-size: 14px; }
+select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); }
+input[type=range] { width: 190px; accent-color: var(--accent); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 16px 0; }
+.tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 12px; }
+.tile .k { font-size: 12px; color: var(--ink2); }
+.tile .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 12px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 8px; min-width: 0; }
+.chart { width: 100%; height: 420px; }
+.chart.tall { height: 560px; }
+.chart.small { height: 340px; }
+table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; width: 100%; }
+th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--grid); }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink2); font-weight: 600; }
+.scroll { overflow-x: auto; }
+.disclaimer { margin-top: 32px; padding: 12px; border: 1px solid var(--ring); border-radius: 8px; color: var(--ink2); font-size: 13px; background: var(--surface); }
+a { color: var(--accent); }
+@media (max-width: 900px) {
+  .controls { position: static; }
+}
+@media (max-width: 820px) {
+  .grid2 { grid-template-columns: 1fr; }
+  input[type=range] { width: 140px; }
+  .chart { height: 360px; }
+  .chart.tall { height: 480px; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Flexible biogas CHP on day-ahead prices</h1>
+<p class="lead">An agricultural biogas plant produces gas at a constant rate. With extra engine capacity, a gas
+storage and a heat tank it can burn that gas in the expensive hours instead of all day long. Every number below is
+a day-by-day backtest of a 0.5 MW plant (constant gas inflow) on Polish day-ahead prices (PSE) and, for comparison,
+German prices (SMARD), from <span id="p0"></span> to <span id="p1"></span>, settled at actual prices. Illustrative
+cost assumptions; not investment advice.</p>
+
+<div class="controls">
+  <label>Market <select id="market"></select></label>
+  <label>Period <select id="period"></select></label>
+  <label>CHP capacity <output id="multOut"></output><input id="mult" type="range" min="0" step="1"></label>
+  <label>Gas storage <output id="storOut"></output><input id="stor" type="range" min="0" step="1"></label>
+  <label>Heatmap <select id="metric"></select></label>
+</div>
+
+<div class="tiles" id="tiles"></div>
+
+<div class="grid2">
+  <div class="card"><div id="bars" class="chart"></div></div>
+  <div class="card"><div id="heat" class="chart"></div></div>
+</div>
+<p class="note">Left: annual margin per strategy for the selected design (stacked: energy sales, minus own-consumption
+purchases, maintenance and engine starts; the dot is the net margin). The first bar is today's plant: one engine
+at full load, 2 h of gas storage. Right: the design grid; the outlined cell is the selection. Realizable = MILP on an
+as-of price forecast made before gate closure; perfect foresight = the same MILP on the actual prices (upper bound
+of a day-by-day plan).</p>
+
+<h2>Dispatch in an example week</h2>
+<div class="card"><div id="week" class="chart tall"></div></div>
+<p class="note" id="weeknote"></p>
+
+<h2>Simplified support schemes (Poland)</h2>
+<div class="card scroll"><table id="support"></table></div>
+<p class="note">Extra net margin versus the 1x baseload plant under the same scheme, thousand PLN per year, whole
+period. FIT-like: a fixed price for every MWh; FIP-like: market price plus a premium up to the fixed price based on
+the monthly mean price; the "negative" variants withhold support in runs of at least 6 negative hours (PL-like rule)
+or in every negative interval. These are stylised simplifications that must be checked against the Polish RES act
+in force; plants above 1 MW may not qualify for FIT/FIP at all.</p>
+
+<h2>Germany: the biomass fleet already follows prices</h2>
+<div class="grid2">
+  <div class="card"><div id="deMonthly" class="chart small"></div></div>
+  <div class="card"><div id="deProfile" class="chart small"></div></div>
+</div>
+<p class="note">SMARD net generation from all biomass units (biogas, biomethane and solid biomass) against the DE-LU
+day-ahead price, hourly. A flat fleet would show zero correlation and 25% of daily output in the six most
+expensive hours.</p>
+
+<h2>Assumptions</h2>
+<div class="card scroll"><table id="assumptions"></table></div>
+
+<div class="disclaimer">Data: PSE S.A. (day-ahead price of the Polish bidding zone, csdac-pln, and the hourly RCE
+from the legacy export before 14 June 2024), SMARD.de / Bundesnetzagentur (CC BY 4.0), ECB reference rates. The
+plant is generic; capex, opex and support levels are labelled assumptions with sources in the README. Statements
+about support schemes are simplifications that need verification against current law. Built on <span id="gen"></span>.</div>
+</main>
+
+<script>
+const D = /*DATA*/null;
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = (v, d = 0) => (v === null || !isFinite(v)) ? "n/a" : v.toLocaleString("en-US", {maximumFractionDigits: d, minimumFractionDigits: d});
+const STRAT = D.strategies;
+const SCOL = {baseload: "--base", rank_forecast: "--warm", rank_perfect: "--warm2", milp_forecast: "--accent", milp_perfect: "--accent2"};
+const PERIOD_LABELS = {all: "Whole period", last12: "Last 12 months"};
+
+function fill(sel, items, labels) {
+  sel.innerHTML = items.map(v => `<option value="${v}">${labels ? labels[v] || v : v}</option>`).join("");
+}
+function layout(extra) {
+  return Object.assign({
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: {family: "system-ui, -apple-system, Segoe UI, sans-serif", size: 12, color: css("--ink2")},
+    margin: {l: 60, r: 20, t: 40, b: 50},
+    xaxis: {gridcolor: css("--grid"), linecolor: css("--axis"), zerolinecolor: css("--axis")},
+    yaxis: {gridcolor: css("--grid"), linecolor: css("--axis"), zerolinecolor: css("--axis")},
+    legend: {orientation: "h", y: -0.18},
+  }, extra || {});
+}
+const CFG = {displayModeBar: false, responsive: true};
+
+function key(m, h) { return `${m}x_${h}h`; }
+function current() {
+  return {market: $("market").value, period: $("period").value,
+          m: D.multipliers[+$("mult").value], h: D.storage[+$("stor").value]};
+}
+function annual(market, k, st, period) {
+  // per-year figures over the months of the period
+  const g = D.markets[market].grid[k][st];
+  const idx = D.months.map((m, i) => D.periods[period].includes(m) ? i : -1).filter(i => i >= 0);
+  const days = idx.reduce((a, i) => a + g.days[i], 0);
+  const out = {};
+  for (const c of D.metrics) out[c] = idx.reduce((a, i) => a + g[c][i], 0) * (c === "days" ? 1 : 365.25 / days);
+  out.capture = out.market_value / out.export_mwh;
+  return out;
+}
+function baseline(c) { return annual(c.market, "1x_2h", "baseload", c.period); }
+function payback(extra, cap) {
+  const net = extra - D.fixed_opex_frac * cap;
+  if (cap <= 0) return 0;
+  return net > 0 ? cap / net : Infinity;
+}
+
+function drawTiles(c) {
+  const k = key(c.m, c.h), base = baseline(c).net;
+  const rt = annual(c.market, k, "milp_forecast", c.period).net - base;
+  const pf = annual(c.market, k, "milp_perfect", c.period).net - base;
+  const rk = annual(c.market, k, "rank_forecast", c.period).net - base;
+  const cap = D.capex[k].total;
+  const pb = payback(rt, cap);
+  const addedKw = (c.m - 1) * 500;
+  const tiles = [
+    ["Extra margin, realizable", `${fmt(rt / 1000)}k PLN/yr`, "MILP on as-of forecast vs 1x baseload"],
+    ["Extra margin, perfect foresight", `${fmt(pf / 1000)}k PLN/yr`, `realizable captures ${pf > 0 ? fmt(100 * rt / pf) : "n/a"}%`],
+    ["Extra margin, rank rule", `${fmt(rk / 1000)}k PLN/yr`, "dearest hours of the forecast"],
+    ["Investment", `${fmt(cap / 1e6, 2)} M PLN`, addedKw > 0 ? `+${fmt(addedKw)} kW CHP, ${fmt(c.h)} h gas storage` : `${fmt(c.h)} h gas storage`],
+    ["Simple payback, realizable", pb === 0 ? "no investment" : (isFinite(pb) ? `${fmt(pb, 1)} years` : "never"),
+     `after fixed opex ${fmt(100 * D.fixed_opex_frac, 1)}% of capex / yr`],
+  ];
+  $("tiles").innerHTML = tiles.map(([k_, v, s]) => `<div class="tile"><div class="k">${k_}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
+}
+
+function drawBars(c) {
+  const k = key(c.m, c.h);
+  const rows = [["today", "1x_2h", "baseload"]].concat(STRAT.filter(s => s !== "baseload").map(s => [s, k, s]));
+  const SHORT = {today: "Today", rank_forecast: "Rank, fc.", rank_perfect: "Rank, actual", milp_forecast: "MILP, fc.", milp_perfect: "MILP, PF"};
+  const narrow = window.innerWidth < 600;
+  const names = rows.map(r => narrow ? SHORT[r[0]] : (r[0] === "today" ? "Today (1x baseload)" : D.labels[r[0]]));
+  const vals = rows.map(r => annual(c.market, r[1], r[2], c.period));
+  const k1 = v => v / 1000;
+  const traces = [
+    {name: "Energy sales", y: vals.map(v => k1(v.sales)), marker: {color: css("--accent")}},
+    {name: "Own-use purchases", y: vals.map(v => -k1(v.import_cost)), marker: {color: css("--neg")}},
+    {name: "Maintenance", y: vals.map(v => -k1(v.maintenance)), marker: {color: css("--muted")}},
+    {name: "Engine starts", y: vals.map(v => -k1(v.start_cost)), marker: {color: css("--warm")}},
+  ].map(t => Object.assign(t, {type: "bar", x: names, hovertemplate: "%{x}<br>%{fullData.name}: %{y:,.0f}k PLN/yr<extra></extra>"}));
+  traces.push({type: "scatter", mode: "markers", name: "Net margin", x: names, y: vals.map(v => k1(v.net)),
+               marker: {color: css("--ink"), size: 10, symbol: "diamond"},
+               customdata: vals.map(v => [v.gen_mwh, v.starts, v.capture]),
+               hovertemplate: "%{x}<br>net %{y:,.0f}k PLN/yr<br>%{customdata[0]:,.0f} MWh, %{customdata[1]:,.0f} starts/yr<br>capture price %{customdata[2]:,.0f} PLN/MWh<extra></extra>"});
+  Plotly.react("bars", traces, layout({barmode: "relative", title: {text: `Annual margin, ${c.m}x CHP / ${c.h} h storage`, font: {size: 14, color: css("--ink")}},
+    yaxis: {title: "thousand PLN / year", gridcolor: css("--grid"), zerolinecolor: css("--axis")},
+    xaxis: {tickfont: {size: 10}, tickangle: narrow ? 0 : "auto"}, legend: {orientation: "h", y: narrow ? -0.12 : -0.18},
+    margin: {l: 60, r: 10, t: 40, b: narrow ? 90 : 110}}), CFG);
+}
+
+function drawHeat(c) {
+  const metric = $("metric").value;
+  const base = baseline(c).net;
+  const z = D.multipliers.map(m => D.storage.map(h => {
+    const k = key(m, h);
+    const rt = annual(c.market, k, "milp_forecast", c.period).net - base;
+    if (metric === "rt") return rt / 1000;
+    if (metric === "pf") return (annual(c.market, k, "milp_perfect", c.period).net - base) / 1000;
+    if (metric === "share") { const pf = annual(c.market, k, "milp_perfect", c.period).net - base; return pf > 0 ? 100 * rt / pf : null; }
+    const pb = payback(rt, D.capex[k].total);
+    return isFinite(pb) ? Math.min(pb, 40) : 40;
+  }));
+  const titles = {rt: "Extra margin, realizable [k PLN/yr]", pf: "Extra margin, perfect foresight [k PLN/yr]",
+                  share: "Realizable / perfect foresight [%]", payback: "Simple payback, realizable [years, capped at 40]"};
+  const text = z.map(r => r.map(v => v === null ? "" : fmt(v, metric === "payback" ? 1 : 0)));
+  const xi = D.storage.indexOf(c.h), yi = D.multipliers.indexOf(c.m);
+  Plotly.react("heat", [{type: "heatmap", z, x: D.storage.map(h => `${h} h`), y: D.multipliers.map(m => `${m}x`), text,
+      texttemplate: "%{text}", textfont: {size: 10}, hoverongaps: false,
+      colorscale: [[0, css("--grid")], [1, css("--accent2")]], reversescale: metric === "payback",
+      colorbar: {thickness: 12}, hovertemplate: "%{y} CHP, %{x} storage: %{text}<extra></extra>"}],
+    layout({title: {text: titles[metric], font: {size: 14, color: css("--ink")}},
+      xaxis: {title: "gas storage (hours of gas production)", type: "category"}, yaxis: {title: "CHP capacity", type: "category"},
+      shapes: [{type: "rect", x0: xi - 0.5, x1: xi + 0.5, y0: yi - 0.5, y1: yi + 0.5, line: {color: css("--neg"), width: 3}}]}), CFG);
+}
+
+function drawWeek(c) {
+  const w = D.markets[c.market].week;
+  if (!w) { Plotly.purge("week"); $("weeknote").textContent = "No example week for this market."; return; }
+  const k = key(c.m, c.h), dsg = w.designs[k];
+  const t0 = new Date(w.days[0] + "T00:00:00");
+  const x = w.price.map((_, i) => new Date(t0.getTime() + i * 900000));
+  const traces = [
+    {x, y: w.price, name: "actual price", line: {color: css("--ink2"), width: 1, shape: "hv"}, yaxis: "y3"},
+    {x, y: w.forecast, name: "as-of forecast", line: {color: css("--accent"), width: 1, dash: "dot", shape: "hv"}, yaxis: "y3"},
+    {x, y: w.baseload, name: "today (1x baseload)", line: {color: css("--base"), width: 1.2, shape: "hv"}, yaxis: "y2"},
+    {x, y: dsg.rank_forecast.power, name: D.labels.rank_forecast, line: {color: css("--warm"), width: 1.2, shape: "hv"}, yaxis: "y2"},
+    {x, y: dsg.milp_forecast.power, name: D.labels.milp_forecast, line: {color: css("--accent"), width: 1.6, shape: "hv"}, yaxis: "y2"},
+    {x, y: dsg.milp_perfect.power, name: D.labels.milp_perfect, line: {color: css("--accent2"), width: 1.2, shape: "hv"}, yaxis: "y2"},
+    {x, y: dsg.milp_forecast.storage.map(v => 100 * v), name: "gas storage, realizable", line: {color: css("--accent"), width: 1.4}, yaxis: "y"},
+    {x, y: dsg.milp_perfect.storage.map(v => 100 * v), name: "gas storage, perfect foresight", line: {color: css("--accent2"), width: 1}, yaxis: "y"},
+  ].map(t => Object.assign(t, {type: "scatter", mode: "lines"}));
+  const ax = {gridcolor: css("--grid"), zerolinecolor: css("--axis")};
+  Plotly.react("week", traces, layout({
+    title: {text: `${c.market}: ${w.days[0]} .. ${w.days[6]}, quarter-hour prices`, font: {size: 14, color: css("--ink")}},
+    yaxis3: Object.assign({domain: [0.68, 1], title: "PLN/MWh"}, ax),
+    yaxis2: Object.assign({domain: [0.30, 0.64], title: "MW"}, ax),
+    yaxis: Object.assign({domain: [0, 0.26], title: "storage %", range: [0, 100]}, ax),
+    xaxis: Object.assign({type: "date"}, ax), legend: {orientation: "h", y: -0.12}, margin: {l: 60, r: 20, t: 40, b: 90}}), CFG);
+  const neg = w.price.filter(v => v < 0).length / 4;
+  $("weeknote").textContent = `The week is the one with the most negative Polish quarter-hours since quarter-hour products started; it had ${fmt(neg, 1)} h of negative prices in ${c.market === "PL" ? "Poland" : "Germany"}. ` +
+    "Engines are committed per clock hour; output still follows the quarter-hour prices. Storage starts and ends every day at 50%.";
+}
+
+function drawSupport() {
+  const s = D.support;
+  if (!s || !s.rows) { $("support").innerHTML = "<tr><td>not computed</td></tr>"; return; }
+  const scen = Object.keys(s.labels);
+  const get = (m, h, st, sc) => s.rows.find(r => r.multiplier === m && r.storage_h === h && r.strategy === st && r.scenario === sc);
+  const designs = [...new Set(s.rows.filter(r => r.multiplier > 1).map(r => `${r.multiplier}|${r.storage_h}`))];
+  let html = "<tr><th>Scheme</th><th>1x baseload net, k PLN/yr</th>";
+  for (const d of designs) { const [m, h] = d.split("|"); for (const st of ["rank_forecast", "milp_forecast", "milp_perfect"]) html += `<th>${m}x / ${h} h<br>${D.labels[st]}</th>`; }
+  html += "</tr>";
+  for (const sc of scen) {
+    const b = get(1, 2, "baseload", sc);
+    html += `<tr><td>${s.labels[sc]}</td><td>${fmt(b.net / 1000)}</td>`;
+    for (const d of designs) { const [m, h] = d.split("|").map(Number); for (const st of ["rank_forecast", "milp_forecast", "milp_perfect"]) { const r = get(m, h, st, sc); html += `<td>${r ? fmt((r.net - b.net) / 1000) : ""}</td>`; } }
+    html += "</tr>";
+  }
+  $("support").innerHTML = html;
+}
+
+function drawGermany() {
+  const g = D.germany;
+  if (!g) return;
+  const x = g.monthly.month.map(m => m + "-01");
+  Plotly.react("deMonthly", [
+    {type: "scatter", mode: "lines", x, y: g.monthly.corr, name: "correlation output vs price (within day)", line: {color: css("--accent")}},
+    {type: "scatter", mode: "lines", x, y: g.monthly.top6_share.map(v => 100 * v), name: "% of output in 6 dearest hours", yaxis: "y2", line: {color: css("--warm")}},
+  ], layout({title: {text: "Price following, monthly", font: {size: 14, color: css("--ink")}},
+    yaxis: {title: "correlation", gridcolor: css("--grid"), zerolinecolor: css("--axis")},
+    yaxis2: {title: "% (flat = 25)", overlaying: "y", side: "right", showgrid: false}, margin: {l: 60, r: 60, t: 40, b: 50}}), CFG);
+  const years = [...new Set(g.profiles.year)];
+  const pick = years.filter(y => [2019, 2022, 2024, 2025].includes(y));
+  const shades = ["--axis", "--muted", "--accent", "--accent2"];
+  const tr = pick.map((y, i) => {
+    const idx = g.profiles.year.map((v, j) => v === y ? j : -1).filter(j => j >= 0);
+    return {type: "scatter", mode: "lines", name: `output ${y}`, x: idx.map(j => g.profiles.hour[j]), y: idx.map(j => g.profiles.gen_rel[j]), line: {color: css(shades[i])}};
+  });
+  const last = Math.max(...years);
+  const li = g.profiles.year.map((v, j) => v === last ? j : -1).filter(j => j >= 0);
+  tr.push({type: "scatter", mode: "lines", name: `price ${last}`, yaxis: "y2", x: li.map(j => g.profiles.hour[j]), y: li.map(j => g.profiles.price_rel[j]), line: {color: css("--ink2"), dash: "dot"}});
+  Plotly.react("deProfile", tr, layout({title: {text: "Mean daily profile (÷ yearly mean)", font: {size: 14, color: css("--ink")}},
+    xaxis: {title: "hour (local)", gridcolor: css("--grid")}, yaxis: {title: "output", gridcolor: css("--grid")},
+    yaxis2: {title: "price", overlaying: "y", side: "right", showgrid: false}, margin: {l: 60, r: 60, t: 40, b: 50}}), CFG);
+}
+
+function drawAssumptions() {
+  const p = D.plant, e = p.engine, c = D.costs, s = D.support;
+  const rows = [
+    ["Gas inflow", `${fmt(p.base_power_mw / e.eta_full, 2)} MW (feeds a ${fmt(p.base_power_mw * 1000)} kW engine at full load)`],
+    ["Electrical efficiency", `${fmt(100 * e.eta_full)}% at full load, ${fmt(100 * e.eta_min)}% at ${fmt(100 * e.min_load)}% minimum load`],
+    ["Heat", `${fmt(100 * p.eta_th)}% of fuel; demand ${fmt(100 * p.heat_winter_frac)}% (winter) to ${fmt(100 * p.heat_summer_frac)}% (summer) of rated CHP heat`],
+    ["Gas storage", `levels ${fmt(100 * p.storage_min_frac)}-${fmt(100 * p.storage_max_frac)}%, 50% at every midnight`],
+    ["Min up / down time", `${fmt(p.min_up_h)} h / ${fmt(p.min_down_h)} h, engines committed per clock hour`],
+    ["Start cost / maintenance", `${fmt(p.start_cost)} PLN per start, ${fmt(p.maintenance)} PLN/MWh`],
+    ["Own consumption", `${fmt(100 * p.own_use_frac)}% of 0.5 MW, bought at price + ${fmt(p.import_fee)} PLN/MWh when engines stand still`],
+    ["Extra CHP", `${fmt(c.chp_per_kw)} PLN/kW + grid ${fmt(c.grid_per_kw)} PLN/kW`],
+    ["Gas storage", `${fmt(c.gas_storage_per_m3)} PLN/m³ above ${fmt(c.existing_storage_h)} h existing (${fmt(c.biogas_kwh_per_m3, 1)} kWh/m³)`],
+    ["Heat tank", `${fmt(c.heat_tank_m3)} m³ at ${fmt(c.heat_tank_per_m3)} PLN/m³ with any extra engine`],
+    ["Other / fixed opex", `${fmt(100 * c.other_frac)}% of capex / ${fmt(100 * c.fixed_opex_frac, 1)}% of capex per year`],
+    ["Support level (scenarios)", `${fmt(s.fixed_price)} PLN/MWh; negative-run rule ${s.negative_run_hours} h`],
+  ];
+  $("assumptions").innerHTML = "<tr><th>Item</th><th style='text-align:left'>Value</th></tr>" +
+    rows.map(r => `<tr><td>${r[0]}</td><td style="text-align:left">${r[1]}</td></tr>`).join("");
+}
+
+function draw() {
+  const c = current();
+  $("multOut").textContent = `${c.m}x (${fmt(c.m * 500)} kW)`;
+  $("storOut").textContent = `${c.h} h`;
+  drawTiles(c); drawBars(c); drawHeat(c); drawWeek(c);
+}
+
+function init() {
+  $("p0").textContent = D.period[0]; $("p1").textContent = D.period[1]; $("gen").textContent = D.generated;
+  fill($("market"), Object.keys(D.markets), {PL: "Poland (PSE)", DE: "Germany (SMARD)"});
+  // year keys look like integers, which JS objects list first: put the named periods first explicitly
+  const pl = ["all", "last12"].concat(Object.keys(D.periods).filter(p => !(p in PERIOD_LABELS)).sort());
+  fill($("period"), pl, Object.fromEntries(pl.map(p => [p, PERIOD_LABELS[p] || p])));
+  $("period").value = "all";
+  fill($("metric"), ["rt", "pf", "share", "payback"], {rt: "Extra margin, realizable", pf: "Extra margin, perfect foresight", share: "Realizable share", payback: "Payback"});
+  $("mult").max = D.multipliers.length - 1; $("mult").value = D.multipliers.indexOf(2);
+  $("stor").max = D.storage.length - 1; $("stor").value = D.storage.indexOf(12);
+  for (const id of ["market", "period", "metric"]) $(id).addEventListener("change", draw);
+  for (const id of ["mult", "stor"]) $(id).addEventListener("input", draw);
+  drawSupport(); drawGermany(); drawAssumptions(); draw();
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { drawGermany(); draw(); });
+}
+init();
+</script>
+</body>
+</html>
