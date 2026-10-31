@@ -151,7 +151,11 @@ def fig_example_week(week: dict, prices: dict, design: str, path: Path, market: 
     ax1.step(x, prices["forecast"], where="post", color=COLORS["milp_forecast"], lw=0.9, ls="--", label="as-of forecast")
     ax1.axhline(0, color="black", lw=0.6)
     ax1.set_ylabel("PLN/MWh")
-    ax1.legend(fontsize=8, loc="upper right")
+    # headroom above the data so the one-row legends no longer cover price peaks and full-load output
+    lo = min(np.nanmin(prices["price"]), np.nanmin(prices["forecast"]))
+    hi = max(np.nanmax(prices["price"]), np.nanmax(prices["forecast"]))
+    ax1.set_ylim(lo - 0.05 * (hi - lo), hi + 0.22 * (hi - lo))
+    ax1.legend(fontsize=8, loc="upper right", ncol=2)
     for st in ("baseload", "milp_forecast", "milp_perfect"):
         key = f"{design}|{st}|merchant" if st != "baseload" else "1x_2h|baseload|merchant"
         p = np.concatenate([np.repeat(week["schedules"][key][d]["power"], 4 if week["schedules"][key][d]["dt"] == 1.0 else 1)
@@ -162,7 +166,10 @@ def fig_example_week(week: dict, prices: dict, design: str, path: Path, market: 
                                           4 if week["schedules"][key][d]["dt"] == 1.0 else 1) for d in days])
             ax3.plot(x, 100 * s, color=COLORS[st], lw=1.1)
     ax2.set_ylabel("Output [MW]")
-    ax2.legend(fontsize=8, loc="upper right")
+    top = ax2.get_ylim()[1]
+    ax2.set_yticks([t for t in ax2.get_yticks() if 0 <= t <= top])
+    ax2.set_ylim(top=1.3 * top)
+    ax2.legend(fontsize=8, loc="upper right", ncol=3)
     ax3.set_ylabel("Gas storage [%]")
     ax3.set_xticks(np.arange(0, 7 * 24 + 1, 24), [d[5:] for d in days] + [""])
     for ax in (ax1, ax2, ax3):

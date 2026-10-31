@@ -197,7 +197,9 @@ function drawBars(c) {
   const rows = [["today", "1x_2h", "baseload"]].concat(STRAT.filter(s => s !== "baseload").map(s => [s, k, s]));
   const SHORT = {today: "Today", rank_forecast: "Rank, fc.", rank_perfect: "Rank, actual", milp_forecast: "MILP, fc.", milp_perfect: "MILP, PF"};
   const narrow = window.innerWidth < 600;
-  const names = rows.map(r => narrow ? SHORT[r[0]] : (r[0] === "today" ? "Today (1x baseload)" : D.labels[r[0]]));
+  // the chart sits in a half-width card: the full strategy names ran into each other and into the legend
+  const short = narrow || document.getElementById("bars").clientWidth < 760;
+  const names = rows.map(r => short ? SHORT[r[0]] : (r[0] === "today" ? "Today (1x baseload)" : D.labels[r[0]]));
   const vals = rows.map(r => annual(c.market, r[1], r[2], c.period));
   const k1 = v => v / 1000;
   const traces = [
@@ -262,7 +264,7 @@ function drawWeek(c) {
     title: {text: `${c.market}: ${w.days[0]} .. ${w.days[6]}, quarter-hour prices`, font: {size: 14, color: css("--ink")}},
     yaxis3: Object.assign({domain: [0.68, 1], title: "PLN/MWh"}, ax),
     yaxis2: Object.assign({domain: [0.30, 0.64], title: "MW"}, ax),
-    yaxis: Object.assign({domain: [0, 0.26], title: "storage %", range: [0, 100]}, ax),
+    yaxis: Object.assign({domain: [0, 0.26], title: "storage %", range: [0, 100], tickvals: [25, 50, 75, 100]}, ax),
     xaxis: Object.assign({type: "date"}, ax), legend: {orientation: "h", y: -0.12}, margin: {l: 60, r: 20, t: 40, b: 90}}), CFG);
   const neg = w.price.filter(v => v < 0).length / 4;
   $("weeknote").textContent = `The week is the one with the most negative Polish quarter-hours since quarter-hour products started; it had ${fmt(neg, 1)} h of negative prices in ${c.market === "PL" ? "Poland" : "Germany"}. ` +
@@ -309,7 +311,8 @@ function drawGermany() {
   tr.push({type: "scatter", mode: "lines", name: `price ${last}`, yaxis: "y2", x: li.map(j => g.profiles.hour[j]), y: li.map(j => g.profiles.price_rel[j]), line: {color: css("--ink2"), dash: "dot"}});
   Plotly.react("deProfile", tr, layout({title: {text: "Mean daily profile (÷ yearly mean)", font: {size: 14, color: css("--ink")}},
     xaxis: {title: "hour (local)", gridcolor: css("--grid")}, yaxis: {title: "output", gridcolor: css("--grid")},
-    yaxis2: {title: "price", overlaying: "y", side: "right", showgrid: false}, margin: {l: 60, r: 60, t: 40, b: 50}}), CFG);
+    yaxis2: {title: "price", overlaying: "y", side: "right", showgrid: false}, legend: {orientation: "h", y: -0.3},
+    margin: {l: 60, r: 60, t: 40, b: 80}}), CFG);
 }
 
 function drawAssumptions() {
