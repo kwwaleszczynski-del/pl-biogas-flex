@@ -268,6 +268,14 @@ F = 894 PLN/MWh is about 95% of the 2023 reference price of 941 PLN/MWh for agri
 cogeneration, 500 kW to 1 MW (Rozporządzenie Ministra Klimatu i Środowiska z 8 listopada 2023 r. w sprawie ceny
 referencyjnej ..., Dz.U. 2023 poz. 2440; [PDF at URE](https://www.ure.gov.pl/download/9/14133/2440.pdf), checked
 27.10.2026). The 95% share, the monthly-mean premium and the per-day evaluation of negative runs are simplifications.
+**High-efficiency cogeneration is assumed, not checked (to be verified).** The modelled plant uses only its stylised
+heat obligation, on average 30% of the rated CHP heat, and dumps the rest: 3,405 MWh of heat a year in the baseload
+case (`dump_mwh` in `results/summary_PL.csv`), about 70% of the engine heat. High-efficiency cogeneration is
+defined by the primary energy savings of the useful heat and power, and only the electricity that goes with useful
+heat counts as cogenerated; with this much dumped heat the plant may not qualify, or only part of its output may.
+Without it the same regulation lists 793 PLN/MWh for 500 kW to 1 MW, and the FIT/FIP results below would be lower.
+Eligibility and the share of qualifying electricity have to be checked against the law and the plant's real heat
+use before any use.
 The 6-hour rule follows the RES act as described by the settlement agent and the regulator: support is withheld for
 energy produced while the day-ahead price is negative for at least six consecutive hours (art. 93 of the RES act,
 [ZRSA FAQ](https://www.zrsa.pl/oze/faq/), [URE on negative prices](https://www.ure.gov.pl/pl/oze/swiadectwa-pochodzenia/ceny-ujemne/12735,OZE-Prezes-Urzedu-Regulacji-Energetyki-przypomina-o-koniecznosci-skorygowania-wn.html),
